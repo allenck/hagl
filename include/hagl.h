@@ -392,11 +392,13 @@ color_t hagl_color(uint8_t r, uint8_t g, uint8_t b);
  * Clear area of the current clip window
  */
 void hagl_clear_clip_window();
+void hagl_clear_clip_window_to_color(color_t color);
 
 /**
  * Clear the display
  */
 void hagl_clear_screen();
+void hagl_clear_screen_to_color(color_t);
 bitmap_t *hagl_init();
 void hagl_flush();
 void hagl_close();
