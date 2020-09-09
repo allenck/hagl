@@ -153,9 +153,11 @@ void bitmap_extract(int16_t x0, int16_t y0, bitmap_t *src, bitmap_t *dst)
             }
         }
         dstptr += (dst->pitch / (dst->depth / 8) - dstw) * bytes;
+        srcptr = (uint8_t *) (src->buffer + (src->pitch * (y+y0+1)) + ((src->depth / 8) * x0));
     }
 #endif
 }
+
 /*
  * Blit source bitmap to target bitmap scaling it up or down to given
  * dimensions.
