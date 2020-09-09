@@ -38,6 +38,7 @@ SPDX-License-Identifier: MIT
 #include <math.h>
 
 #include "bitmap.h"
+//#include "hagl_hal.h"
 
 /* Get bitmap size in bytes. */
 uint32_t bitmap_size(bitmap_t *bitmap) {
@@ -120,14 +121,28 @@ void bitmap_blit(int16_t x0, int16_t y0, bitmap_t *src, bitmap_t *dst)
 void bitmap_extract(int16_t x0, int16_t y0, bitmap_t *src, bitmap_t *dst)
 {
     uint32_t size = bitmap_size(dst);
-    int16_t srcw = src->width;
-    int16_t srch = src->height;
     int16_t dstw = dst->width;
     int16_t dsth = dst->height;
     int16_t x1 = 0;
     int16_t y1 = 0;
-    uint8_t *srcptr = (uint8_t *) (src->buffer + (src->pitch * y0) + ((src->depth / 8) * x0));
     uint8_t *dstptr = (uint8_t *) (dst->buffer + (dst->pitch * y1) + ((dst->depth / 8) * x1));
+
+#ifdef CONFIG_HAGL_HAL_NO_BUFFERING
+    /* Bytes per pixel. */
+    uint8_t bytes = dst->depth / 8;
+    for (uint16_t y = 0; y < dsth; y++) {
+        for (uint16_t x = 0; x < dstw; x++) {
+            for (uint16_t z = 0; z < bytes; z++) {
+//                    *(dstptr++) = *(srcptr++);
+                *(dstptr++) = hagl_get_pixel(x,y);
+            }
+        }
+//            dstptr += (dst->pitch / (dst->depth / 8) - dstw) * bytes;
+    }
+#else
+    int16_t srcw = src->width;
+    int16_t srch = src->height;
+    uint8_t *srcptr = (uint8_t *) (src->buffer + (src->pitch * y0) + ((src->depth / 8) * x0));
 
     /* Bytes per pixel. */
     uint8_t bytes = dst->depth / 8;
@@ -139,6 +154,7 @@ void bitmap_extract(int16_t x0, int16_t y0, bitmap_t *src, bitmap_t *dst)
         }
         dstptr += (dst->pitch / (dst->depth / 8) - dstw) * bytes;
     }
+#endif
 }
 /*
  * Blit source bitmap to target bitmap scaling it up or down to given
