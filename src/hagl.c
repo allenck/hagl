@@ -41,7 +41,7 @@ SPDX-License-Identifier: MIT
 #include "bitmap.h"
 #include "rgb332.h"
 #include "rgb565.h"
-#include "fontx.h"
+#include "fontx2.h"
 #include "clip.h"
 #include "tjpgd.h"
 #include "window.h"
@@ -67,6 +67,10 @@ void hagl_set_clip_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
     clip_window.y1 = y1;
 }
 
+/*
+ * Puts a pixel RGB565 color. This is the only mandatory function HAL must
+ * support.
+ */
 void hagl_put_pixel(int16_t x0, int16_t y0, color_t color)
 {
     /* x0 or y0 is before the edge, nothing to do. */
@@ -83,6 +87,10 @@ void hagl_put_pixel(int16_t x0, int16_t y0, color_t color)
     hagl_hal_put_pixel(x0, y0, color);
 }
 
+/*
+ * Draw a horizontal line with given color. If HAL supports it uses
+ * hardware hline drawing. If not falls back to vanilla line drawing.
+ */
 void hagl_draw_hline(int16_t x0, int16_t y0, uint16_t w, color_t color) {
 #ifdef HAGL_HAS_HAL_HLINE
     int16_t width = w;
@@ -278,49 +286,19 @@ void hagl_fill_rectangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, color_t
     }
 }
 
-uint8_t hagl_get_glyph(char16_t code, color_t color, bitmap_t *bitmap, const uint8_t *font)
-{
-    uint8_t status, set;
-    fontx_glyph_t glyph;
-
-    status = fontx_glyph(&glyph, code, font);
-
-    if (0 != status) {
-        return status;
-    }
-
-    /* Initialise bitmap dimensions. */
-    bitmap->depth = DISPLAY_DEPTH,
-    bitmap->width = glyph.width,
-    bitmap->height = glyph.height,
-    bitmap->pitch = bitmap->width * (bitmap->depth / 8);
-    bitmap->size = bitmap->pitch * bitmap->height;
-
-    color_t *ptr = (color_t *) bitmap->buffer;
-
-    for (uint8_t y = 0; y < glyph.height; y++) {
-        for (uint8_t x = 0; x < glyph.width; x++) {
-            set = *(glyph.buffer) & (0x80 >> (x % 8));
-            if (set) {
-                *(ptr++) = color;
-            } else {
-                *(ptr++) = 0x0000;
-            }
-        }
-        glyph.buffer += glyph.pitch;
-    }
-
-    return 0;
-}
+/*
+ * Write a single character.
+ *
+ */
 
 uint8_t hagl_put_char(char16_t code, int16_t x0, int16_t y0, color_t color, const uint8_t *font)
 {
     uint8_t set, status;
     color_t buffer[HAGL_CHAR_BUFFER_SIZE];
     bitmap_t bitmap;
-    fontx_glyph_t glyph;
+    fontx2_glyph_t glyph;
 
-    status = fontx_glyph(&glyph, code, font);
+    status = fontx2_glyph(&glyph, code, font);
 
     if (0 != status) {
         return 0;
@@ -331,7 +309,11 @@ uint8_t hagl_put_char(char16_t code, int16_t x0, int16_t y0, color_t color, cons
     bitmap.depth = DISPLAY_DEPTH,
 
     bitmap_init(&bitmap, (uint8_t *)buffer);
+#ifdef CONFIG_HAGL_HAL_NO_BUFFERING
+    bitmap_extract(x0, y0, NULL, &bitmap);
+#else
     bitmap_extract(x0, y0, hagl_hal_get_fb(), &bitmap);
+#endif
 
     color_t *ptr = (color_t *) bitmap.buffer;
 
@@ -340,10 +322,10 @@ uint8_t hagl_put_char(char16_t code, int16_t x0, int16_t y0, color_t color, cons
             set = *(glyph.buffer) & (0x80 >> (x % 8));
             if (set) {
                 *(ptr++) = color;
-            } 
+            }
             else {
                 //*(ptr++) = 0x0000;
-                prt++
+                ptr++;
             }
         }
         glyph.buffer += glyph.pitch;
@@ -351,7 +333,7 @@ uint8_t hagl_put_char(char16_t code, int16_t x0, int16_t y0, color_t color, cons
 
     hagl_blit(x0, y0, &bitmap);
 
-    return bitmap.width;
+    return glyph.width;
 }
 
 /*
@@ -364,9 +346,9 @@ uint16_t hagl_put_text(const char16_t *str, int16_t x0, int16_t y0, color_t colo
     char16_t temp;
     uint8_t status;
     uint16_t original = x0;
-    fontx_meta_t meta;
+    fontx2_meta_t meta;
 
-    status = fontx_meta(&meta, font);
+    status = fontx2_meta(&meta, font);
     if (0 != status) {
         return 0;
     }
@@ -432,19 +414,7 @@ void hagl_scale_blit(uint16_t x0, uint16_t y0, uint16_t w, uint16_t h, bitmap_t 
 #ifdef HAGL_HAS_HAL_SCALE_BLIT
     hagl_hal_scale_blit(x0, y0, w, h, source);
 #else
-    color_t color;
-    color_t *ptr = (color_t *) source->buffer;
-    uint32_t x_ratio = (uint32_t)((source->width << 16) / w);
-    uint32_t y_ratio = (uint32_t)((source->height << 16) / h);
-
-    for (uint16_t y = 0; y < h; y++) {
-        for (uint16_t x = 0; x < w; x++) {
-            uint16_t px = ((x * x_ratio) >> 16);
-            uint16_t py = ((y * y_ratio) >> 16);
-            color = ptr[(uint8_t)((py * source->width) + px)];
-            hagl_put_pixel(x0 + x, y0 + y, color);
-        }
-    }
+    /* TODO: Use pdo_put_pixel() to write to framebuffer. */
 #endif
 };
 
@@ -466,7 +436,6 @@ void hagl_clear_clip_window() {
     hagl_clear_clip_window_to_color(0);
 }
 void hagl_clear_clip_window_to_color(color_t color) {
-
     hagl_fill_rectangle(
         clip_window.x0, clip_window.y0, clip_window.x1, clip_window.y1,
         color
