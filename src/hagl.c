@@ -331,6 +331,7 @@ uint8_t hagl_put_char(char16_t code, int16_t x0, int16_t y0, color_t color, cons
     bitmap.depth = DISPLAY_DEPTH,
 
     bitmap_init(&bitmap, (uint8_t *)buffer);
+    bitmap_extract(x0, y0, hagl_hal_get_fb(), &bitmap);
 
     color_t *ptr = (color_t *) bitmap.buffer;
 
@@ -339,8 +340,10 @@ uint8_t hagl_put_char(char16_t code, int16_t x0, int16_t y0, color_t color, cons
             set = *(glyph.buffer) & (0x80 >> (x % 8));
             if (set) {
                 *(ptr++) = color;
-            } else {
-                *(ptr++) = 0x0000;
+            } 
+            else {
+                //*(ptr++) = 0x0000;
+                prt++
             }
         }
         glyph.buffer += glyph.pitch;
@@ -446,20 +449,27 @@ void hagl_scale_blit(uint16_t x0, uint16_t y0, uint16_t w, uint16_t h, bitmap_t 
 };
 
 void hagl_clear_screen() {
+    hagl_clear_screen_to_color(0);
+}
+void hagl_clear_screen_to_color(color_t color) {
     uint16_t x0 = clip_window.x0;
     uint16_t y0 = clip_window.y0;
     uint16_t x1 = clip_window.x1;
     uint16_t y1 = clip_window.y1;
 
     hagl_set_clip_window(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT -1);
-    hagl_fill_rectangle(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT -1, 0x00);
+    hagl_fill_rectangle(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT -1, color);
     hagl_set_clip_window(x0, y0, x1, y1);
 }
 
 void hagl_clear_clip_window() {
+    hagl_clear_clip_window_to_color(0);
+}
+void hagl_clear_clip_window_to_color(color_t color) {
+
     hagl_fill_rectangle(
         clip_window.x0, clip_window.y0, clip_window.x1, clip_window.y1,
-        0x00
+        color
     );
 }
 
